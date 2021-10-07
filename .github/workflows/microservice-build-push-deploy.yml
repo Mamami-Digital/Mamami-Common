@@ -1,0 +1,66 @@
+name: Build docker image, push it to ACR and deply it on AKS
+
+on:
+  workflow_call:
+    inputs:
+      REGISTRY_NAME:
+        description: The name of the Azure Container Registry (ACR)
+        required: true
+        type: string
+      CLUSTER_NAME:
+        description: The name of the Azure Kubernetes Service (AKS)
+        required: true
+        type: string
+      CLUSTER_RESOURCE_GROUP:
+        description: The Resource Group of the AKS
+        required: true
+        type: string
+      SECRET:
+        description: The name of the ACR pull secret
+        required: true
+        type: string
+      APP_NAME:
+        description: The name of the ACR repository (docker image)
+        required: true
+        type: string
+      DOCKERFILE:
+        description: The path of the Dockerfile
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    
+    - name: Login
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ inputs.REGISTRY_NAME }}.azurecr.io
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
+
+    - name: Build & Push to ACR
+      run: |
+        docker build -f ${{ inputs.DOCKERFILE }} -t ${{ inputs.REGISTRY_NAME }}.azurecr.io/${{ inputs.APP_NAME }}:${{ github.sha }} .
+        docker push ${{ inputs.REGISTRY_NAME }}.azurecr.io/${{ inputs.APP_NAME }}:${{ github.sha }}
+
+    - name: Set the target Azure Kubernetes Service (AKS) cluster. 
+      uses: azure/aks-set-context@v1
+      with:
+        creds: '${{ secrets.AZURE_CREDENTIALS }}'
+        cluster-name: ${{ inputs.CLUSTER_NAME }}
+        resource-group: ${{ inputs.CLUSTER_RESOURCE_GROUP }}
+
+    - name: Deploy app to AKS
+      uses: azure/k8s-deploy@v1
+      with:
+        manifests: |
+           manifests/deployment.yml
+           manifests/service.yml
+        images: |
+           ${{ inputs.REGISTRY_NAME }}.azurecr.io/${{ inputs.APP_NAME }}:${{ github.sha }}
+        imagepullsecrets: |
+           ${{ inputs.SECRET }}
