@@ -27,6 +27,16 @@ on:
         description: The path of the Dockerfile
         required: true
         type: string
+    secrets:
+      ACR_USERNAME:
+        description: The username to log into ACR
+        required: true
+      ACR_PASSWORD:
+        description: The password to log into ACR
+        required: true
+      AZURE_CREDENTIALS:
+        description: The credentials to log into Azure to control AKS
+        required: true
 
 jobs:
   build:
